@@ -1,0 +1,109 @@
+:root {
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+body {
+    /* Display & Box Model */
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    /* Visual */
+    background-color: #222;
+}
+
+#container {
+    /* Positioning */
+    position: absolute;
+    /* Display & Box Model */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    /* Visual */
+    background-color: #222;
+}
+
+#chartArea {
+    /* Display & Box Model */
+    border: 1px solid gray;
+    flex: 1;
+    box-sizing: border-box;
+}
+
+#legendsDiv {
+    /* Positioning */
+    position: absolute;
+    z-index: 100;
+    /* Display & Box Model */
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 25%;
+    padding: 5px;
+    margin: 5px;
+    /* Typography */
+    font-size: 14px;
+    /* Visual */
+    /* background-color: rgba(105, 89, 89, 0.5); */
+    pointer-events: none; /* Allow chart interactions through the overlay */
+}
+
+.legend-group {
+    display: flex;
+    gap: 5px;
+}
+
+.legend {
+    /* Typography */
+    color: #f0f0f0;
+    font-weight: 400;
+}
+
+.controls-row {
+    /* Display & Box Model */
+    display: flex;
+    gap: 10px;
+    padding: 5px;
+}
+
+.control {
+    /* Display & Box Model */
+    padding: 4px 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    /* Typography */
+    color: #f0f0f0;
+    font-size: 14px;
+    /* Visual */
+    background-color: #333;
+    cursor: pointer;
+}
+
+.control:hover {
+    background-color: #444;
+}
+
+/* input[type="file"].control {
+    padding: 6px;
+} */
+
+input[type="file"].control::-webkit-file-upload-button {
+    /* Display & Box Model */
+    padding: 4px 8px;
+    margin-right: 10px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    /* Typography */
+    color: #f0f0f0;
+    font-size: 14px;
+    /* Visual */
+    background-color: #333;
+    cursor: pointer;
+}
+
+input[type="file"].control::-webkit-file-upload-button:hover {
+    background-color: #444;
+}

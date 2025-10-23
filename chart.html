@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0"
+    />
+    <title>Lightweight Charts</title>
+    <link rel="stylesheet" href="src/charts/styles/chart-dropdown.css">
+    <link rel="stylesheet" href="src/charts/styles/chart-styles.css">
+  </head>
+  
+  <body>
+    <div id="container">
+      <div class="controls-row">
+        <button id="refresh" class="control">Refresh</button>
+        <div class="dropdown-div control">
+          <button id="dropdownTrigger" class="dropdown-trigger">
+            <span id="dropdownText">Series...</span>
+            <span id="dropdownArrow" class="dropdown-arrow">▼</span>
+          </button>
+          <div id="dropdownMenu" class="dropdown-menu">
+            <ul id="dropdownList" class="dropdown-list main-list">
+              <!-- Dropdown items will be inserted here -->
+            </ul>
+          </div>
+        </div>
+        <input type="file" id="csvFileInput" accept=".csv" class="control">
+        <label for="csvFileInput"></label>
+      </div>
+      <div id="chartArea">
+        <div id="legendsDiv">
+          <!-- Legend items will be inserted here -->
+        </div>
+      </div>
+    </div>
+    <script type="module" src="src/charts/logic/charts.ts"></script>
+  </body>
+</html>

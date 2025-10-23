@@ -1,0 +1,156 @@
+/* Base Container */
+.dropdown-div {
+    /* Positioning */
+    position: relative;
+    /* Display & Box Model */
+    /* width: 120px; */
+    /* Visual */
+    background: yellow;
+}
+
+/* Trigger Button */
+.dropdown-trigger {
+    /* Display & Box Model */
+    padding: 4px 8px;
+    margin-right: 10px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    /* Typography */
+    color: #f0f0f0;
+    font-size: 14px;
+    /* Visual */
+    background-color: #333;
+    cursor: pointer;
+}
+
+.dropdown-trigger:hover {
+    background-color: #444;
+}
+
+/* Arrow Icon */
+.dropdown-arrow {
+    /* Visual */
+    transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    /* Display & Box Model */
+    overflow: hidden;
+    /* Positioning */
+    position: absolute;
+    top: 110%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    /* Display & Box Model */
+    max-height: 0;
+    /* Visual */
+    transition: max-height 0.3s ease;
+}
+
+.dropdown-menu.open {
+    max-height: 400px;
+}
+
+/* Dropdown Lists */
+.dropdown-list {
+    /* Display & Box Model */
+    list-style: none;
+    margin: 0;
+    padding: 0px;
+    overflow: hidden;
+    /* Visual */
+    background-color: #333;
+    transition: max-height 0.3s ease;
+}
+
+.main-list {
+    /* Display & Box Model */
+    border-radius: 4px;
+    gap: 2px;
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+/* List Items */
+.dropdown-item {
+    /* Display & Box Model */
+    border-bottom: 2px solid #333;
+    border-radius: 4px;
+    /* Typography */
+    font-weight: bold;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.item-header {
+    /* Display & Box Model */
+    display: flex;
+    align-items: center;
+    /* Visual */
+    background-color: #282828;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.item-header:hover {
+    background-color: #444;
+}
+
+/* Checkboxes */
+.series-checkbox, .group-checkbox, .sub-checkbox {
+    /* Display & Box Model */
+    margin-right: 10px;
+    /* Visual */
+    accent-color: #444;
+}
+
+/* Sub Items */
+.sub-list {
+    max-height: 0;
+}
+
+.sub-list.open {
+    max-height: 200px;
+}
+
+.sub-item {
+    /* Display & Box Model */
+    display: flex;
+    padding: 5px;
+    align-items: center;
+    border-bottom: 1px solid #444;
+    /* Typography */
+    font-weight: normal;
+    font-size: 12px;
+}
+
+.sub-item:last-child {
+    border-bottom: none;
+}
+
+.sub-item:hover {
+    background-color: #444;
+}
+
+/* Additional Elements */
+.selected-count {
+    /* Display & Box Model */
+    margin-left: 5px;
+    /* Typography */
+    color: #666;
+    font-size: 12px;
+}
+
+label {
+    /* Typography */
+    color: #f0f0f0;
+    /* Visual */
+    user-select: none;
+}
