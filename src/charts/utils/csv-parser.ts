@@ -104,9 +104,12 @@ class CSVParser {
    * @private
    */
   private _validateColumns(requiredColumns: string[]): void {
-    const missingColumns = requiredColumns.filter(col => !this.headers.includes(col));
-    if (missingColumns.length > 0) {
-      throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
+    // Use lower case only during comparison. Leave headers unmodified.
+    const lowerCaseheaders = this.headers.map(header => header.toLowerCase());
+    const missing = requiredColumns.filter(col => !lowerCaseheaders.includes(col.toLowerCase()));
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing required columns: ${missing.join(', ')}`);
     }
   }
 

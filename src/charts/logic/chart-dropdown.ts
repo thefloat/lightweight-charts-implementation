@@ -42,12 +42,11 @@
  * ```
  */
 
-import {
-    SeriesKey,
-    SeriesItem,
-    SeriesGroup,
-    isValidSeriesKey,
-} from './series-config'; // Adjust path as needed
+export interface ChartItem {
+    id: string;
+    label: string;
+    group?: {id:string, label: string}
+}
 
 /**
  * ChartDropdown manages a hierarchical dropdown menu for chart series selection.
@@ -56,9 +55,8 @@ import {
 export class ChartDropdown {
     private container: HTMLElement | null;
     private isOpen: boolean;
-    private selectedSeries: Set<SeriesKey>;
-    private individualSeries: Map<SeriesKey, SeriesItem>;
-    private seriesGroups: Map<string, SeriesGroup>;
+    private selectedItems: Set<string>;
+    private chartItems: Map<string, ChartItem>;
 
     // Properties to store bound event handlers for easy removal
     private boundToggleDropdownHandler: (e: Event) => void;
@@ -66,18 +64,18 @@ export class ChartDropdown {
     private boundMenuClickHandler: (e: Event) => void;
 
     // New property to store the callback
-    private onSelectionChangeCallback: ((selectedSeries: Set<SeriesKey>) => void) | undefined;
+    private onSelectionChangeCallback: ((selectedSeries: Set<string>) => void) | undefined;
 
-    constructor(containerId: string, onSelectionChange?: (selectedSeries: Set<SeriesKey>) => void) {
+    constructor(containerId: string, onSelectionChange?: (selectedSeries: Set<string>) => void) {
         this.container = document.getElementById(containerId);
         if (!this.container) {
             throw new Error(`Container element with ID '${containerId}' not found`);
         }
 
         this.isOpen = false;
-        this.selectedSeries = new Set<SeriesKey>();
-        this.individualSeries = new Map<SeriesKey, SeriesItem>();
-        this.seriesGroups = new Map<string, SeriesGroup>();
+        this.selectedItems = new Set<string>();
+        this.chartItems = new Map<string, ChartItem>();
+        // this.group
 
         // Store callback if provided
         this.onSelectionChangeCallback = onSelectionChange;
@@ -96,157 +94,84 @@ export class ChartDropdown {
     // ===== Public API =====
 
     /**
-     * Adds an individual series item to the dropdown.
-     * Series are visible by default when added.
+     * addItem
      */
-    public addSeries(seriesItem: SeriesItem): void {
-        const { id, name } = seriesItem;
-
-        if (this.individualSeries.has(id)) {
-            console.warn(`Series with ID '${id}' already exists. Skipping.`);
+    private addItem(chartItem: ChartItem) {
+        const { id, label, group} = chartItem;
+        
+        if (this.chartItems.has(id)) {
+            console.warn(`item with ID '${id}' already exists. Skipping...`);
             return;
         }
 
-        this.individualSeries.set(id, seriesItem);
-        this.selectedSeries.add(id); // Visible by default
+        this.chartItems.set(id, chartItem);
+        this.selectedItems.add(id); // Visible by default
 
-        const seriesElement = this.createSeriesElement(id, name);
-        this.container?.appendChild(seriesElement);
-        
-        this.bindSeriesEvents(id);
+        if (!group) {
+            // add individual item 
+            this.container?.appendChild(this.createItemElement(id, label));
+            this.bindSeriesEvents(id);  
+        } else {
+            const groupId = group.id
+            const groupLabel = group.label
+
+            // add group item
+            let groupElement = this.container?.querySelector(`[data-group-id="${groupId}"]`);
+            if (!groupElement) {
+                groupElement = this.createGroupElement(groupId, groupLabel);
+                this.container?.appendChild(groupElement);
+                this.bindGroupEvents(groupId);  
+            }
+
+            // Add sub items
+            const groupSubList = this.container?.querySelector(`#${CSS.escape(groupId)}-options`)
+            groupSubList?.appendChild(this.createSubItemElement(id, groupId, label));
+            this.bindSubItemEvent(id)
+
+
+            // After elements are created, update the group checkbox state
+            this.updateGroupCheckboxState(groupId);
+
+        }
         this.updateDisplay();
     }
 
     /**
-     * Adds a group of related series items.
-     * All series in the group are visible by default.
+     * Remove item from any collections tracking it and from html base container
      */
-    public addSeriesGroup(seriesGroup: SeriesGroup): void {
-        const { id, name, seriesItems: series } = seriesGroup;
+    public removeItem(itemId: string) {
+        const chartItem = this.chartItems.get(itemId)
+        if (chartItem) {
+            this.selectedItems.delete(itemId);
+            this.chartItems.delete(itemId)
+            this.container?.querySelector(`[data-series-id="${itemId}"]`)?.remove()
 
-        if (this.seriesGroups.has(id)) {
-            console.warn(`Group with ID '${id}' already exists. Skipping.`);
-            return;
+            // If group item, remove group element if there's no item left in it
+            const groupId = chartItem.group?.id
+            if (groupId) {
+                const sameGroupItem = [...this.chartItems.values()].find(i => i.group?.id === groupId)
+                if (!sameGroupItem) {
+                    this.container?.querySelector(`[data-group-id="${groupId}"]`)?.remove()
+                }
+            }
+        }
+        this.updateDisplay();        
+    }
+
+    /**
+     * Replace old items with new ones.
+     * Safely remove old items from collections tracking them 
+     * and from base html container
+     */
+    public update(chartItems: ChartItem[]) {
+        // Remove existing items
+        for (const itemId of this.chartItems.keys()) {
+            this.removeItem(itemId)
         }
 
-        this.seriesGroups.set(id, seriesGroup);
-        series.forEach(s => this.selectedSeries.add(s.id)); // All visible by default
-        
-        const groupElement = this.createGroupElement(id, name, series);
-        this.container?.appendChild(groupElement);
+        // Add new items
+        chartItems.forEach(i => this.addItem(i))
 
-        // 
-        // this.updateGroupCheckboxState(id);
-        
-        this.bindGroupEvents(id);
-        this.updateDisplay();
-    }
-    
-    /**
-     * Removes an individual series from the dropdown.
-     * This will update the UI and remove the series from selection.
-     */
-    public removeSeries(seriesId: SeriesKey): void {
-        const seriesElement = this.container?.querySelector(`[data-series-id="${seriesId}"]`);
-        seriesElement?.remove();
-
-        if (this.individualSeries.has(seriesId)) {
-            this.selectedSeries.delete(seriesId);
-            this.individualSeries.delete(seriesId);
-            this.updateDisplay();
-        }
-    }
-
-    /**
-     * Removes a series group and all its contained series.
-     * Updates UI and removes all group series from selection.
-     */
-    public removeSeriesGroup(groupId: string): void {
-        const groupElement = this.container?.querySelector(`[data-group-id="${groupId}"]`);
-        groupElement?.remove();
-
-        const groupConfig = this.seriesGroups.get(groupId);
-        if (groupConfig) {
-            groupConfig.seriesItems.forEach(s => this.selectedSeries.delete(s.id));
-            this.seriesGroups.delete(groupId);
-            this.updateDisplay();
-        }
-    }
-
-    /**
-     * Updates the dropdown with new sets of individual series and series groups.
-     * All existing series and groups are removed before adding the new ones.
-     * Newly added series are selected by default.
-     * @param newIndividualSeries Optional array of individual series items to add.
-     * @param newSeriesGroups Optional array of series group configurations to add.
-     */
-    public update(newIndividualSeries?: SeriesItem[], newSeriesGroups?: SeriesGroup[]): void {
-        // Remove all existing individual series
-        const currentIndividualIds = Array.from(this.individualSeries.keys());
-        currentIndividualIds.forEach(id => {
-            this.removeSeries(id); // This method handles DOM removal and internal map/set updates
-        });
-
-        // Remove all existing series groups
-        const currentGroupIds = Array.from(this.seriesGroups.keys());
-        currentGroupIds.forEach(id => {
-            this.removeSeriesGroup(id); // This method handles DOM removal and internal map/set updates
-        });
-
-        // Add new individual series if provided
-        if (newIndividualSeries) {
-            newIndividualSeries.forEach(seriesItem => {
-                this.addSeries(seriesItem);
-            });
-        }
-
-        // Add new series groups if provided
-        if (newSeriesGroups) {
-            newSeriesGroups.forEach(groupConfig => {
-                this.addSeriesGroup(groupConfig);
-            });
-        }
-
-        this.updateDisplay();
-    }
-
-    /**
-     * Returns array of currently selected series IDs.
-     */
-    public getSelectedSeries(): Set<string> {
-        return new Set(this.selectedSeries);
-    }
-
-    /**
-     * Updates the selection state of series programmatically.
-     * @param seriesIds - Array of series IDs to be selected
-     */
-    public setSelectedSeries(seriesIds: SeriesKey[]): void {
-        this.selectedSeries.clear();
-        
-        const allCheckboxes = this.container?.querySelectorAll('.sub-checkbox, .series-checkbox') ?? [];
-        allCheckboxes.forEach((checkbox: Element) => {
-            const input = checkbox as HTMLInputElement;
-            const isSelected = seriesIds.includes(input.id as SeriesKey);
-            input.checked = isSelected;
-            if (isSelected) this.selectedSeries.add(input.id as SeriesKey);
-        });
-
-        this.seriesGroups.forEach((_, groupId) => this.updateGroupCheckboxState(groupId));
-        this.updateDisplay();
-    }
-
-    /**
-     * Deselects all series and groups.
-     */
-    public clearAllSelections(): void {
-        this.selectedSeries.clear();
-        const allCheckboxes = this.container?.querySelectorAll('.sub-checkbox, .group-checkbox, .series-checkbox') ?? [];
-        allCheckboxes.forEach((checkbox: Element) => {
-            const input = checkbox as HTMLInputElement;
-            input.checked = false;
-            input.indeterminate = false;
-        });
         this.updateDisplay();
     }
 
@@ -273,9 +198,8 @@ export class ChartDropdown {
         }
 
         // Clear data structures
-        this.selectedSeries.clear();
-        this.seriesGroups.clear();
-        this.individualSeries.clear();
+        this.selectedItems.clear();
+        this.chartItems.clear();
 
         // Reset internal state
         this.isOpen = false;
@@ -288,7 +212,7 @@ export class ChartDropdown {
 
     // --- Element Creation ---
     
-    private createSeriesElement(seriesId: SeriesKey, seriesName: string): HTMLLIElement {
+    private createItemElement(seriesId: string, seriesName: string): HTMLLIElement {
         const li: HTMLLIElement = document.createElement('li');
         li.className = 'dropdown-item';
         li.dataset.seriesId = seriesId;
@@ -300,7 +224,7 @@ export class ChartDropdown {
         checkbox.type = 'checkbox';
         checkbox.className = 'series-checkbox';
         checkbox.id = seriesId;
-        checkbox.checked = this.selectedSeries.has(seriesId); // Ensure checkbox reflects current selection state
+        checkbox.checked = this.selectedItems.has(seriesId); // Ensure checkbox reflects current selection state
 
         const label: HTMLLabelElement = document.createElement('label');
         label.setAttribute('for', seriesId);
@@ -312,8 +236,32 @@ export class ChartDropdown {
 
         return li;
     }
+    
+    private createSubItemElement(itemId: string, groupId: string, seriesName: string): HTMLLIElement {
+        const subItem = document.createElement('li');
+        subItem.className = 'sub-item';
 
-    private createGroupElement(groupId: string, groupName: string, series: SeriesItem[]): HTMLLIElement {
+        const subCheckbox = document.createElement('input');
+        subCheckbox.type = 'checkbox';
+        subCheckbox.className = 'sub-checkbox';
+        subCheckbox.id = itemId;
+        subCheckbox.dataset.group = groupId;
+        subCheckbox.checked = this.selectedItems.has(itemId); // Reflects current selection state
+
+        const subLabel = document.createElement('label');
+        subLabel.setAttribute('for', itemId);
+        subLabel.textContent = seriesName;
+
+        subItem.appendChild(subCheckbox);
+        subItem.appendChild(subLabel);
+
+        return subItem;
+    }
+
+    /**
+     * createGroupElement
+     */
+    private createGroupElement(groupId: string, groupName: string): HTMLLIElement {
         const li: HTMLLIElement = document.createElement('li');
         li.className = 'dropdown-item';
         li.dataset.groupId = groupId;
@@ -326,8 +274,6 @@ export class ChartDropdown {
         groupCheckbox.type = 'checkbox';
         groupCheckbox.className = 'group-checkbox';
         groupCheckbox.id = `${groupId}-group`;
-        // Initial state of group checkbox depends on sub-items being selected
-        // this.updateGroupCheckboxState will handle this after sub-items are created/added
 
         const groupLabel: HTMLLabelElement = document.createElement('label');
         groupLabel.setAttribute('for', `${groupId}-group`);
@@ -340,32 +286,8 @@ export class ChartDropdown {
         subList.classList = 'dropdown-list sub-list'
         subList.id = `${groupId}-options`;
 
-        series.forEach(seriesItem => {
-            const subItem = document.createElement('li');
-            subItem.className = 'sub-item';
-
-            const subCheckbox = document.createElement('input');
-            subCheckbox.type = 'checkbox';
-            subCheckbox.className = 'sub-checkbox';
-            subCheckbox.id = seriesItem.id;
-            subCheckbox.dataset.group = groupId;
-            subCheckbox.checked = this.selectedSeries.has(seriesItem.id); // Reflects current selection state
-
-            const subLabel = document.createElement('label');
-            subLabel.setAttribute('for', seriesItem.id);
-            subLabel.textContent = seriesItem.name;
-
-            subItem.appendChild(subCheckbox);
-            subItem.appendChild(subLabel);
-            subList.appendChild(subItem);
-        });
-
         li.appendChild(itemHeader);
         li.appendChild(subList);
-
-        // After elements are created, update the group checkbox state
-        const checkedCount = series.filter(item => this.selectedSeries.has(item.id)).length;
-        this.updateGroupCheckboxState(groupId, groupCheckbox, checkedCount, series.length);
 
         return li;
     }
@@ -416,13 +338,14 @@ export class ChartDropdown {
             e.stopPropagation();
             this.handleGroupCheckbox(e.target as HTMLInputElement);
         });
+    }
 
-        const subCheckboxes = this.container?.querySelectorAll(`.sub-checkbox[data-group="${groupId}"]`);
-        subCheckboxes?.forEach(checkbox => {
-            checkbox.addEventListener('change', (e: Event) => {
-                e.stopPropagation();
-                this.handleSubCheckbox(e.target as HTMLInputElement);
-            });
+    private bindSubItemEvent(seriesId: string) {
+        const subCheckbox = this.container?.querySelector(`#${CSS.escape(seriesId)}.sub-checkbox`);
+        
+        subCheckbox?.addEventListener('change', (e: Event) => {
+            e.stopPropagation();
+            this.handleSubCheckbox(e.target as HTMLInputElement);
         });
     }
 
@@ -432,12 +355,12 @@ export class ChartDropdown {
         const dropdownText = document.getElementById('dropdownText');
         if (!dropdownText) return;
         
-        const count = this.selectedSeries.size;
+        const count = this.selectedItems.size;
         
         if (count === 0) {
             dropdownText.textContent = 'Series...';
         } else if (count === 1) {
-            const selectedId = Array.from(this.selectedSeries)[0];
+            const selectedId = Array.from(this.selectedItems)[0];
             // Try to find the label within the container for better scoping
             const label = this.container?.querySelector(`label[for="${CSS.escape(selectedId)}"]`) || document.querySelector(`label[for="${CSS.escape(selectedId)}"]`);
             const labelText = label?.textContent || selectedId;
@@ -448,12 +371,13 @@ export class ChartDropdown {
 
         // Toggle series visiblilities
         if (this.onSelectionChangeCallback) {
-            this.onSelectionChangeCallback(new Set(this.selectedSeries)); // Pass a copy to prevent external modification
+            this.onSelectionChangeCallback(new Set(this.selectedItems)); // Pass a copy to prevent external modification
         }
     }
 
     private toggleDropdown(): void {
         this.isOpen = !this.isOpen;
+
         document.getElementById('dropdownMenu')?.classList.toggle('open', this.isOpen);
         document.getElementById('dropdownArrow')?.classList.toggle('open', this.isOpen);
     }
@@ -531,15 +455,10 @@ export class ChartDropdown {
     private updateSelectedItems(checkbox: HTMLInputElement): void {
         const key = checkbox.id;
 
-        if (!isValidSeriesKey(key)) {
-            console.warn(`Invalid SeriesKey: ${key}`);
-            return;
-        }
-
         if (checkbox.checked) {
-            this.selectedSeries.add(key as SeriesKey);
+            this.selectedItems.add(key);
         } else {
-            this.selectedSeries.delete(key as SeriesKey);
+            this.selectedItems.delete(key);
         }
     }
 }

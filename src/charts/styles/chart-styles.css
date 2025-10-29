@@ -41,19 +41,27 @@ body {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    width: 25%;
+    width: 45%;
     padding: 5px;
     margin: 5px;
     /* Typography */
-    font-size: 14px;
+    font-size: 12px;
     /* Visual */
     /* background-color: rgba(105, 89, 89, 0.5); */
     pointer-events: none; /* Allow chart interactions through the overlay */
 }
 
 .legend-group {
+    /* Display & Box Model */
     display: flex;
     gap: 5px;
+}
+
+.legend-sym {
+    /* Display & Box Model */    
+    margin: 0 2px;
+    color: #ffffffb0;
+    font-weight: 400;
 }
 
 .legend {

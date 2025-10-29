@@ -1,120 +1,32 @@
 import * as LightweightCharts from 'lightweight-charts';
+import * as sl from './series-source-lookup'; //sl - source lookup
 import CSVParser, { TradeEvent } from '../utils/csv-parser';
-import { ChartDropdown } from './chart-dropdown';
+import { ChartDropdown, ChartItem } from './chart-dropdown';
 
 
-// ============================================================================
-// Core Type Definitions
-// ============================================================================
-
-/**
- * Defines the core configuration and behavior of a chart series.
- * @template TSeriesType - The type of series (Candlestick, Line, etc.) that determines data structure
- */
-interface SeriesDefinition<TSeriesType extends LightweightCharts.SeriesType> {
-    label: string;
-    seriesId: string;
-    group?: string,
-    formatData: (series: LightweightCharts.ISeriesApi<TSeriesType>, dataPoint: LightweightCharts.SeriesDataItemTypeMap[TSeriesType]) => string;
-    createSeries: (chart: LightweightCharts.IChartApi) => LightweightCharts.ISeriesApi<TSeriesType>;
-    parseData: (csvParser: CSVParser) => LightweightCharts.SeriesDataItemTypeMap[TSeriesType][];
-    createLegendElement: () => HTMLElement;
-}
-
-/**
- * Runtime instance of a series, containing both its definition and current state
- */
 interface SeriesInstance<TSeriesType extends LightweightCharts.SeriesType> {
-    definition: SeriesDefinition<TSeriesType>;
+    suffix?: string;
+    seriesSource: sl.SeriesSource;
+    seriesType: TSeriesType;
     series: LightweightCharts.ISeriesApi<TSeriesType>;
     data?: LightweightCharts.SeriesDataItemTypeMap[TSeriesType][];
     legendElement: HTMLElement;
 }
-
-const candlestickColumns = ['open', 'high', 'low', 'close'] as const;
-
-// ============================================================================
-// Type Mapping and Utilities
-// ============================================================================
-
-/**
- * Maps series identifiers to their definitions. This serves as the source of truth
- * for all available series types in the application.
- */
-export interface SeriesDefinitionMap {
-    candlestick: SeriesDefinition<'Candlestick'>;
-    volume: SeriesDefinition<'Histogram'>;
-    bb_upper: SeriesDefinition<'Line'>;
-    bb_middle: SeriesDefinition<'Line'>;
-    bb_lower: SeriesDefinition<'Line'>;
-    dc_upper: SeriesDefinition<'Line'>;
-    dc_middle: SeriesDefinition<'Line'>;
-    dc_lower: SeriesDefinition<'Line'>;
-    adx: SeriesDefinition<'Line'>;
-}
-
-export type SeriesKey = keyof SeriesDefinitionMap;
-
-// Utility type to extract series type from a key
-type SeriesTypeFromKey<T extends SeriesKey> = 
-    SeriesDefinitionMap[T] extends SeriesDefinition<infer U> ? U : never;
-
-// Maps each series identifier to its corresponding instance type    
-type SeriesInstanceMap = {
-    [K in SeriesKey]: SeriesInstance<SeriesTypeFromKey<K>>;
-};
-
-// Series Grouping
-export interface SeriesItem {
-    id: SeriesKey;
-    name: string;
-}
-
-export interface SeriesGroup {
-    id: string;
-    name: string;
-    legendElement: HTMLElement;
-    seriesItems: SeriesItem[];
-}
-
-const predefinedGroupSeries: Record<string, SeriesGroup> = {
-    bollinger_bands: {
-        id: 'bollinger_bands',
-        name: 'Bollinger Bands',
-        legendElement: createLegendGroupDiv(),
-        seriesItems: [
-            {id: 'bb_upper', name: 'BB Upper'},
-            {id: 'bb_lower', name: 'BB Lower'},
-            {id: 'bb_middle', name: 'BB Middle'},
-        ]
-    },
-    donchian_channels: {
-        id: 'donchian_channels',
-        name: 'Donchian Channels',
-        legendElement: createLegendGroupDiv(), 
-        seriesItems: [
-            {id: 'dc_upper', name: 'DC Upper'},
-            {id: 'dc_lower', name: 'DC Lower'},
-            {id: 'dc_middle', name: 'DC Middle'},
-        ]
-    }
-} as const;
 
 // ============================================================================
 // Series Factory Functions
 // ============================================================================
 
 /**
- * Creates a line series with consistent styling and scale margins.
+ * Creates a line series with consistent scale margins.
  * Used for all trend lines and indicators displayed as lines.
  */
-function createLineSeries(chart: LightweightCharts.IChartApi, color: string, paneIndex?: number): LightweightCharts.ISeriesApi<"Line"> {
-    const series = chart.addSeries(LightweightCharts.LineSeries, {
-        color: color,
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-    });
+function addLineSeries(
+  chart: LightweightCharts.IChartApi,
+  options?: LightweightCharts.SeriesPartialOptionsMap["Line"],
+  paneIndex?: number
+): LightweightCharts.ISeriesApi<"Line"> {
+    const series = chart.addSeries(LightweightCharts.LineSeries, options);
     
     series.priceScale().applyOptions({
         scaleMargins: {
@@ -131,19 +43,14 @@ function createLineSeries(chart: LightweightCharts.IChartApi, color: string, pan
 }
 
 /**
- * Creates a volume histogram series with a dedicated price scale
- * and appropriate visual settings for volume display.
+ * Creates a volume histogram series with a consistent price scale
  */
-function createVolumeSeries(chart: LightweightCharts.IChartApi): LightweightCharts.ISeriesApi<"Histogram"> {
-    const series = chart.addSeries(LightweightCharts.HistogramSeries, {
-        color: '#26a69a',
-        priceFormat: {
-            type: 'volume',
-        },
-        priceScaleId: '',
-        priceLineVisible: false,
-        lastValueVisible: false,
-    });
+function addHistogramSeries(
+  chart: LightweightCharts.IChartApi,
+  options?: LightweightCharts.SeriesPartialOptionsMap["Histogram"],
+  paneIndex?: number
+): LightweightCharts.ISeriesApi<"Histogram"> {
+    const series = chart.addSeries(LightweightCharts.HistogramSeries, options);
     
     series.priceScale().applyOptions({
         scaleMargins: {
@@ -151,6 +58,10 @@ function createVolumeSeries(chart: LightweightCharts.IChartApi): LightweightChar
             bottom: 0,
         },
     });
+
+    if (paneIndex) {
+        series.moveToPane(paneIndex)
+    }
     
     return series;
 }
@@ -159,10 +70,12 @@ function createVolumeSeries(chart: LightweightCharts.IChartApi): LightweightChar
  * Creates a candlestick series configured for optimal price display.
  * Sets scaling options to prevent rendering issues.
  */
-function createCandlestickSeries(chart: LightweightCharts.IChartApi): LightweightCharts.ISeriesApi<"Candlestick"> {
-    const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
-        borderVisible: false,
-    });
+function addCandlestickSeries(
+  chart: LightweightCharts.IChartApi,
+  options?: LightweightCharts.SeriesPartialOptionsMap["Candlestick"],
+  paneIndex?: number
+): LightweightCharts.ISeriesApi<"Candlestick"> {
+    const series = chart.addSeries(LightweightCharts.CandlestickSeries, options);
     
     series.priceScale().applyOptions({
         autoScale: true, // Note: Setting to false causes a bug where chart doesn't render sometimes
@@ -171,11 +84,17 @@ function createCandlestickSeries(chart: LightweightCharts.IChartApi): Lightweigh
             bottom: 0.4,
         },
     });
+
+    if (paneIndex) {
+        series.moveToPane(paneIndex)
+    }
     
     return series;
 }
 
-function createTradeEventMarkers(tradeEvents: TradeEvent[]): LightweightCharts.SeriesMarkerBar<LightweightCharts.Time>[] {
+function createTradeEventMarkers(
+    tradeEvents: TradeEvent[]
+): LightweightCharts.SeriesMarkerBar<LightweightCharts.Time>[] {
     const markers: LightweightCharts.SeriesMarkerBar<LightweightCharts.Time>[] = [];
 
     for (const tradeEvent of tradeEvents) {
@@ -225,388 +144,338 @@ function createTradeEventMarkers(tradeEvents: TradeEvent[]): LightweightCharts.S
     return markers;
 }
 
-function createLegendGroupDiv() {
+/**
+ * Create legend element for a simple series.
+ */
+function createLegendElement(): HTMLElement {
+    const legendDiv = document.createElement('div');
+    legendDiv.classList.add('legend');
+    return legendDiv;
+}
+
+/**
+ * Create legend element to hold all series for a particular indicator.
+ */
+function createLegendGroupDiv(): HTMLElement {
     const div = document.createElement('div');
     div.className = 'legend-group';
     return div;
 }
 
-// ============================================================================
-// Instance Creation Functions
-// ============================================================================
+/**
+ * Create symbol for a group div
+ */
+function createGroupSymbolElement(symbol: string): HTMLElement {
+    const symElement = document.createElement('span');
+    symElement.className = 'legend-sym';
+    symElement.textContent = symbol + ':';
+    return symElement;
+}
+
+function createSeriesInstance(
+    seriesSource: sl.SeriesSource,
+    seriesType: 'Candlestick',
+    chart: LightweightCharts.IChartApi,
+    seriesOptions?: LightweightCharts.SeriesPartialOptionsMap["Candlestick"],
+    paneIndex?: number,
+    suffix?: string
+): SeriesInstance<'Candlestick'> | undefined;
+
+function createSeriesInstance(
+    seriesSource: sl.SeriesSource,
+    seriesType: 'Histogram',
+    chart: LightweightCharts.IChartApi,
+    seriesOptions?: LightweightCharts.SeriesPartialOptionsMap["Histogram"],
+    paneIndex?: number,
+    suffix?: string
+): SeriesInstance<'Histogram'> | undefined;
+
+function createSeriesInstance(
+    seriesSource: sl.SeriesSource,
+    seriesType: 'Line',
+    chart: LightweightCharts.IChartApi,
+    seriesOptions?: LightweightCharts.SeriesPartialOptionsMap["Line"],
+    paneIndex?: number,
+    suffix?: string
+): SeriesInstance<'Line'> | undefined;
+
+function createSeriesInstance<TSeriesType extends LightweightCharts.SeriesType>(
+    seriesSource: sl.SeriesSource, 
+    seriesType: TSeriesType,
+    chart: LightweightCharts.IChartApi,
+    seriesOptions?: LightweightCharts.SeriesPartialOptionsMap[TSeriesType],
+    paneIndex?: number,
+    suffix?: string
+): SeriesInstance<TSeriesType> | undefined;
 
 /**
- * Factory functions for creating strongly-typed series instances.
- * These ensure proper typing and initialization of each series type.
+ * Create a new SeriesIntance object. 
+ * Takes the all require parameters to create the core ISeriesAPI
  */
-function createCandlestickInstance(chart: LightweightCharts.IChartApi): SeriesInstanceMap['candlestick'] {
-    const definition = SeriesDefinitions.candlestick;
-    return {
-        definition,
-        series: definition.createSeries(chart),
-        legendElement: definition.createLegendElement()
-    };
-}
+function createSeriesInstance<TSeriesType extends LightweightCharts.SeriesType>(
+    seriesSource: sl.SeriesSource, 
+    seriesType: TSeriesType,
+    chart: LightweightCharts.IChartApi,
+    seriesOptions?: LightweightCharts.SeriesPartialOptionsMap[TSeriesType],
+    paneIndex?: number,
+    suffix?: string
+): SeriesInstance<TSeriesType> | undefined {
+    let series;
 
-function createVolumeInstance(chart: LightweightCharts.IChartApi): SeriesInstanceMap['volume'] {
-    const definition = SeriesDefinitions.volume;
-    return {
-        definition,
-        series: definition.createSeries(chart),
-        legendElement: definition.createLegendElement()
-    };
-}
-
-function createLineInstance<K extends 'bb_upper' | 'bb_middle' | 'bb_lower' | 'dc_upper' | 'dc_middle' | 'dc_lower' | 'adx'>(
-    key: K,
-    chart: LightweightCharts.IChartApi
-): SeriesInstanceMap[K] {
-    const definition = SeriesDefinitions[key];
-    return {
-        definition,
-        series: definition.createSeries(chart),
-        legendElement: definition.createLegendElement()
-    };
-}
-
-// ============================================================================
-// Series Definitions Configuration
-// ============================================================================
-
-/**
- * Global configuration for all available series types.
- * Each entry defines how a specific series type should be created,
- * displayed, and how its data should be formatted.
- */
-export const SeriesDefinitions: SeriesDefinitionMap = {
-    candlestick: {
-        label: 'O H L C',
-        seriesId: 'candlestick',
-        formatData: (series, data: LightweightCharts.WhitespaceData | LightweightCharts.CandlestickData) => {
-            const fmt = series.priceFormatter();
-            if ('open' in data) {
-                return `O${fmt.format(data.open)} H${fmt.format(data.high)} L${fmt.format(data.low)} C${fmt.format(data.close)}`;
-            }
-            return '';
-        },
-        createSeries: (chart) => createCandlestickSeries(chart),
-        parseData: (csvParser: CSVParser) => csvParser.parseCandlestickData(),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div')
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        },
-    },
-    volume: {
-        label: 'Volume',
-        seriesId: 'volume',
-        formatData: (series, data: LightweightCharts.HistogramData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `V${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createVolumeSeries(chart),
-        parseData: (csvParser: CSVParser) => csvParser.parseHistogramData('volume'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        },
-    },
-    bb_upper: {
-        label: 'Upper BB',
-        seriesId: 'bb_upper',
-        group: 'bollinger_bands',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `U${fmt.format(data.value)}`: '';
-        },
-        createSeries: (chart) => createLineSeries(chart, '#FF5733'),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('bb_upper'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
-    },
-    bb_middle: {
-        label: 'Middle BB',
-        seriesId: 'bb_middle',
-        group: 'bollinger_bands',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `M${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createLineSeries(chart, '#F2D222'),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('bb_middle'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
-    },
-    bb_lower: {
-        label: 'Lower BB',
-        seriesId: 'bb_lower',
-        group: 'bollinger_bands',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `L${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createLineSeries(chart,  '#FF5733'),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('bb_lower'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
-    },
-    dc_upper: {
-        label: 'Upper Channel',
-        seriesId: 'dc_upper',
-        group: 'donchian_channels',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `U${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createLineSeries(chart, '#3380FF'),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('dc_upper'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
-    },
-    dc_middle: {
-        label: 'Middle Channel',
-        seriesId: 'dc_middle',
-        group: 'donchian_channels',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `M${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createLineSeries(chart, '#22F2D2'),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('dc_middle'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
-    },
-    dc_lower: {
-        label: 'Lower Channel',
-        seriesId: 'dc_lower',
-        group: 'donchian_channels',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `L${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createLineSeries(chart, '#3380FF'),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('dc_lower'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
-    },
-    adx: {
-        label: 'ADX',
-        seriesId: 'adx',
-        formatData: (series, data: LightweightCharts.LineData | LightweightCharts.WhitespaceData) => {
-            const fmt = series.priceFormatter();
-            return 'value' in data ? `ADX${fmt.format(data.value)}` : '';
-        },
-        createSeries: (chart) => createLineSeries(chart, '#3380FF', 1),
-        parseData: (csvParser: CSVParser) => csvParser.parseLineData('adx'),
-        createLegendElement: () => {
-            const legendDiv = document.createElement('div');
-            legendDiv.classList.add('legend');
-            return legendDiv;
-        }
+    switch (seriesType) {
+        case 'Candlestick':
+            series = addCandlestickSeries(chart);
+            break;
+        case 'Histogram':
+            series = addHistogramSeries(chart, seriesOptions);
+            break;
+        case 'Line':
+            series = addLineSeries(chart, seriesOptions, paneIndex);
+            break;
+        default:
+            console.error('Unhandled series type:', seriesType);
+            (series as never);
+            return undefined;
     }
-}
 
-export function isValidSeriesKey(id: string): id is SeriesKey {
-    return id in SeriesDefinitions;
+    return {
+        suffix: suffix,
+        seriesSource: seriesSource,
+        seriesType: seriesType,
+        series: series as LightweightCharts.ISeriesApi<TSeriesType>,
+        legendElement: createLegendElement()
+    };
 }
-
-// ============================================================================
-// Series Management Implementation
-// ============================================================================
 
 /**
- * Manages the lifecycle and state of all chart series.
- * Provides type-safe access to series instances and handles their visibility and updates.
+ * Adds and manages ISeriesAPI object of the associated IChartApi object 
+ * through SeriesInstance objects.
  */
 export class SeriesManager {
-    private seriesInstances: SeriesInstanceMap;
-    private activeSeries: Set<SeriesKey> | undefined;
-    private csvParser: CSVParser | undefined;
+    private seriesInstances: Map<string, SeriesInstance<LightweightCharts.SeriesType>>;
     private chartDropdown: ChartDropdown;
     
-    constructor(private chart: LightweightCharts.IChartApi) {
-        this.seriesInstances = this.createInstances();
-        // this.csvParser = new CSVParser('');
+    constructor(private chart: LightweightCharts.IChartApi, private legendsDiv: HTMLDivElement) {
+        this.seriesInstances = new Map();
 
         // Initialize chart dropdown with callback to update series visibility based on user selection
         this.chartDropdown = new ChartDropdown('dropdownList', (selectedSeries) => {
-            this.activeSeries?.forEach(key => 
+            for (const key of this.seriesInstances.keys()) {
                 this.toggleSeriesVisibility(key, selectedSeries.has(key))
-            );
+            }
         });
     }
 
-    private createInstances(): SeriesInstanceMap {
-        const instances = {} as SeriesInstanceMap;
-        
-        // Create each instance explicitly to maintain proper typing
-        instances.candlestick = createCandlestickInstance(this.chart);
-        instances.volume = createVolumeInstance(this.chart);
-        instances.bb_upper = createLineInstance('bb_upper', this.chart);
-        instances.bb_middle = createLineInstance('bb_middle', this.chart);
-        instances.bb_lower = createLineInstance('bb_lower', this.chart);
-        instances.dc_upper = createLineInstance('dc_upper', this.chart);
-        instances.dc_middle = createLineInstance('dc_middle', this.chart);
-        instances.dc_lower = createLineInstance('dc_lower', this.chart);
-        instances.adx = createLineInstance('adx', this.chart);
-        
-        return instances;
-    }
-
-    /**
-     * Retrieves all currently managed series instances.
-     * @returns A readonly, partial map of series instances.
-     */
-    getAllInstances(): Readonly<Partial<SeriesInstanceMap>> {
-        return this.seriesInstances;
-    }
-
-    /**
-     * Retrieves a specific series instance by its key.
-     * @param key The `SeriesKey` of the instance to retrieve.
-     * @returns The `SeriesInstance` if found, otherwise `undefined`.
-     */
-    getSeriesInstance<K extends SeriesKey>(key: K): SeriesInstance<SeriesTypeFromKey<K>> | undefined {
-        // The type assertion is to satisfy TypeScript, ensuring the correct specific instance type is returned.
-        return this.seriesInstances[key] as SeriesInstance<SeriesTypeFromKey<K>> | undefined;
-    }
-
-    private clearAllSeriesData() {
-        (Object.keys(this.seriesInstances) as SeriesKey[]).forEach(key => {
-            this.seriesInstances[key].series.setData([]);
-
-            //Remove legends
-            this.seriesInstances[key].legendElement.remove();
-        });
-    }
-
-    updateAllSeriesData(csvText: string, legendsDiv: HTMLDivElement) {
+    updateAll(csvText: string): boolean {
         const csvParser = new CSVParser(csvText);
-        this.csvParser = csvParser;
-        this.clearAllSeriesData();
-        
-        const rawCsvHeaders = this.csvParser.getHeaders();
-        const validSeries = new Set<SeriesKey>();
 
-        // Update validSeries: candlestick
-        const allOhlcPresent = candlestickColumns.every(column => rawCsvHeaders.includes(column));
+        const seriesInstances = this.addSeriesFromCsv(csvParser);
+
+        if (seriesInstances.size === 0) {
+            return false;
+        }
+
+        this.cleanup();
+
+        this.seriesInstances = seriesInstances;
+
+        this.setSeriesData(csvParser);
+        this.updateUI()
+
+        return true;
+    }
+
+    private addSeriesFromCsv(csvParser: CSVParser): Map<string, SeriesInstance<LightweightCharts.SeriesType>> {
+		const rawCsvHeaders = csvParser.getHeaders();
+        const seriesInstances = new Map();
+
+        const ohlc = ['open', 'high', 'low', 'close'];
+        const allOhlcPresent = ohlc.every(c => rawCsvHeaders.includes(c));
+
         if (allOhlcPresent) {
-            validSeries.add('candlestick' as SeriesKey);
+            const seriesInstance = createSeriesInstance(
+                            'candlestick',
+                            'Candlestick',
+                            this.chart,
+                            sl.SeriesSourceConfigs['candlestick']['seriesOptions']
+                        )
+            if (seriesInstance) seriesInstances.set('candlestick',seriesInstance);
         } else {
-            console.error('Candlestick data missing or incomplete')
+            // If ever making a production version, consider adding a fallback here
+            console.error('Missing one or more OHLC columns: ', ohlc);
         }
 
-        // Update validSeries: add instances available in csv
-        Object.keys(this.seriesInstances).forEach(key => {
-            if (rawCsvHeaders.includes(key)) {
-                validSeries.add(key as SeriesKey);
-            }
-        }) 
+        for (const header of rawCsvHeaders) {
+            const matchingSource = (Object.keys(sl.SeriesSources) as sl.SeriesSource[]).find(s => header.startsWith(s))
+            if (matchingSource) {
+                const suffix = header.slice(matchingSource.length)
+                switch (matchingSource) {
+                    case 'adx': {
+                        const seriesInstance = createSeriesInstance(
+                                'adx',
+                                'Line',
+                                this.chart,
+                                sl.SeriesSourceConfigs['adx']['seriesOptions'],
+                                1,
+                                suffix
+                            )
+                        if (seriesInstance) seriesInstances.set(header, seriesInstance)   
+                        break;
+                    }
+                    default: {
+                        const seriesInstance = createSeriesInstance(
+                                matchingSource, 
+                                sl.SeriesSources[matchingSource], 
+                                this.chart, 
+                                sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
+                                undefined,
+                                suffix
+                                
+                            )   
+                        if (seriesInstance) seriesInstances.set(header, seriesInstance)
+                        break;
+                    }
+                }
 
-        const validIndividualSeries: SeriesItem[] = [];
-        
-        validSeries.forEach(seriesKey => {
-            const instance = this.seriesInstances[seriesKey];
-            instance.data = instance.definition.parseData(csvParser);
-            instance.series.setData(instance.data);
-
-            // Add legends elements to group div or main div
-            const seriesGroup = instance.definition.group;
-            if (!seriesGroup) {
-                validIndividualSeries.push({
-                    id: seriesKey,
-                    name: instance.definition.label
-                });
-                legendsDiv?.appendChild(instance.legendElement);                
-            } else {
-                const groupDiv = predefinedGroupSeries[seriesGroup].legendElement;
-                groupDiv?.appendChild(instance.legendElement);
             }
+        }
+
+        if (seriesInstances.size == 0) {
+            console.error('No valid series found in CSV headers:', rawCsvHeaders);
+        }
+
+        return seriesInstances;
+    }
+
+    private setSeriesData(csvParser: CSVParser) {
+        for (const [key, seriesInstance] of this.seriesInstances.entries()) {
+            switch (seriesInstance.seriesType) {
+                case 'Candlestick':
+                    seriesInstance.data = csvParser.parseCandlestickData();
+                    break;
+                case 'Histogram':
+                    seriesInstance.data = csvParser.parseHistogramData(key);
+                    break;
+                case 'Line':
+                    seriesInstance.data = csvParser.parseLineData(key);
+                    break;
+                default:
+                    console.error('Encountered unknown series type while parsing data: ', seriesInstance.seriesType);
+                    (seriesInstance.seriesType as never);
+                    seriesInstance.data = [];
+                    break;
+            }
+            // ensure we never call setData with undefined
+            seriesInstance.series.setData(seriesInstance.data)
+        }
+
+        this.addTradeEventMarkers(csvParser);
+    }
+
+    private updateUI() {
+
+        // ===== Dropdown Menu =====
+
+        const chartItems: ChartItem[] = [];
+        this.seriesInstances.forEach((instance, key) => {
+            const suffix = instance.suffix || undefined
+            const sourceConfig = sl.SeriesSourceConfigs[instance.seriesSource]
+            const configLabel = sourceConfig['label']
+            const indicator = sourceConfig['indicator']
+
+            const label = suffix ? configLabel + ` ${suffix}` : configLabel
+
+             let group;
+             if (indicator) {
+                const indicatorId = suffix ? indicator + `_${suffix}` : indicator
+                const indicatorLabel = suffix ? sl.Indicators[indicator] + ` ${suffix}` : sl.Indicators[indicator]
+                group = {id: indicatorId, label: indicatorLabel}
+             }
+
+            chartItems.push({
+                id: key,
+                label: label,
+                group: group
+            }) 
         });
-        
-        // Process group series with only valid series
-        const validGroupSeries = Object.values(predefinedGroupSeries)
-            .map(groupSeries => ({
-                ...groupSeries,
-                seriesItems: groupSeries.seriesItems.filter(item => validSeries.has(item.id))
-            }))
-            .filter(group => group.seriesItems.length > 0);
 
-        // Update activeSeries
-        this.activeSeries = validSeries;
+        this.chartDropdown.update(chartItems);
 
-        // Add valid group series to legendDiv
-        validGroupSeries.forEach(groupSeries => {
-            legendsDiv?.appendChild(groupSeries.legendElement); 
-        })  
-        
-        // Update UI components
-        this.chartDropdown.update(validIndividualSeries, validGroupSeries);
-        this.addTradeEventMarkers();
+
+        //===== Legends =====
+
+        const groupedSources = [...this.seriesInstances.values()].reduce<Map<string, HTMLElement[]>>(
+        (acc, instance) => {
+            const sourceGroup = sl.SeriesSourceConfigs[instance.seriesSource].indicator ??
+             instance.seriesSource;
+
+            const legendElement = instance.legendElement;
+
+            const existing = acc.get(sourceGroup);
+            if (existing) {
+            existing.push(legendElement);
+            } else {
+            acc.set(sourceGroup, [legendElement]);
+            }
+
+            return acc;
+        }, new Map<string, HTMLElement[]>());
+
+        // Add legends to legendsDiv
+        for (const [sourceGroup, legends] of groupedSources.entries()) {
+            const groupDiv = createLegendGroupDiv();
+
+            const groupSymbol = sourceGroup.slice(0, 2);
+            groupDiv.appendChild(createGroupSymbolElement(groupSymbol.toUpperCase()))
+
+            legends.forEach(l => groupDiv.appendChild(l));
+
+            this.legendsDiv.appendChild(groupDiv);
+        }
+
+        this.chart.timeScale().fitContent();
     }
 
-    // Method to format data for display with proper type handling
-    formatSeriesData<K extends SeriesKey>(
-        key: K, 
-        dataPoint: LightweightCharts.SeriesDataItemTypeMap[SeriesTypeFromKey<K>] | LightweightCharts.WhitespaceData
-    ): string {
-        const instance = this.seriesInstances[key];
-        return instance.definition.formatData(instance.series, dataPoint);
+    private cleanup() {
+        for (const seriesInstance of this.seriesInstances.values()) {
+			this.chart.removeSeries(seriesInstance.series);
+
+            seriesInstance.legendElement.remove();
+        }
+
+        // Ensure any untracked legends are removed
+        this.legendsDiv.replaceChildren();
     }
 
-    addTradeEventMarkers() {
+    crosshairMoveHandler(param: LightweightCharts.MouseEventParams) {
+        if (!param.time) {
+            return;
+        }
+        
+        for (const seriesInstance of this.seriesInstances.values()) {
+            const dataPoint = param.seriesData.get(seriesInstance.series);
+            if (dataPoint) {
+                const priceFormatter = seriesInstance.series.priceFormatter()
+                const formateData = sl.SeriesSourceConfigs[seriesInstance.seriesSource].formatData
+                seriesInstance.legendElement.textContent = formateData(priceFormatter, dataPoint)
+            }
+        }
+    }
+
+    addTradeEventMarkers(csvParser: CSVParser) {
         // Set trade events markers if available in data
-        if (this.csvParser?.getHeaders().includes('event')) {
-            const tradeSeriesMarkers = LightweightCharts.createSeriesMarkers(this.getSeriesInstance('candlestick')!.series);
-            tradeSeriesMarkers.setMarkers(createTradeEventMarkers(this.csvParser.parseTradeEvents()));
+        if (csvParser.getHeaders().includes('event')) {
+            const candlestickSeries = this.seriesInstances.get('candlestick')
+            if (!candlestickSeries) {
+                return
+            }
+
+            const tradeSeriesMarkers = LightweightCharts.createSeriesMarkers(candlestickSeries.series);
+            tradeSeriesMarkers.setMarkers(createTradeEventMarkers(csvParser.parseTradeEvents()));
         }
     }
-
-    /**
-     * Updates the legend text for a series instance with current data.
-     * @template T - The series type (Candlestick, Line, etc.)
-     * @param instance - The series instance to update
-     * @param currentDataPoint - The current data point to display
-     */
-    updateLegend<K extends SeriesKey>(
-        key: K,
-        dataPoint?: LightweightCharts.SeriesDataItemTypeMap[SeriesTypeFromKey<K>] | LightweightCharts.WhitespaceData
-    ) {
-        const seriesInstance = this.seriesInstances[key];
-        
-        if (dataPoint) {
-            // Use formatted data when dataPoint is provided
-            seriesInstance.legendElement.textContent = this.formatSeriesData(key, dataPoint);
-        } else {
-            // Use default label from series definition when no dataPoint
-            seriesInstance.legendElement.textContent = seriesInstance.definition.label;
-        }
-    }
-
-    /**
-     * Controls the visibility of a specific series.
-     * Uses exhaustive type checking to ensure all series types are handled.
-     */
-    toggleSeriesVisibility(key: SeriesKey, visible: boolean): void {
-        this.seriesInstances[key].series.applyOptions({ visible });
+    
+    toggleSeriesVisibility(key: string, visible: boolean): void {
+        this.seriesInstances.get(key)?.series.applyOptions({ visible });
     }
 }
