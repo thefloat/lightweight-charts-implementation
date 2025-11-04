@@ -247,6 +247,39 @@ function createSeriesInstance<TSeriesType extends LightweightCharts.SeriesType>(
     };
 }
 
+type BbAndDc = Extract<sl.SeriesSource, `bb_${string}` | `dc_${string}`>
+
+function getSourceOptions<S extends BbAndDc>(
+    source: S, num: number
+): LightweightCharts.SeriesPartialOptionsMap[sl.SeriesSources[S]] {
+    const sourceColorMap = {
+        'bb_ul': ['#87312b', '#c22929', '#dc7369'],
+        'bb_m': ['#9e9e00', '#ffff00', '#feff83'],
+        'dc_ul': ['#181577', '#2e29c2', '#5f73da'],
+        'dc_m': ['#273186', '#800080', '#a95ea7']
+    }
+
+    const sourceOptions = {...sl.SeriesSourceConfigs[source]['seriesOptions']}
+    switch (source) {
+        case 'bb_upper':
+        case 'bb_lower':
+            sourceOptions.color = sourceColorMap['bb_ul'][num]
+            break;
+        case 'bb_middle':
+            sourceOptions.color = sourceColorMap['bb_m'][num]
+            break;
+        case 'dc_upper':
+        case 'dc_lower':
+            sourceOptions.color = sourceColorMap['dc_ul'][num]
+            break;
+        case 'dc_middle':
+            sourceOptions.color = sourceColorMap['dc_m'][num]
+            break;
+        }
+
+    return sourceOptions
+}
+
 /**
  * Adds and manages ISeriesAPI object of the associated IChartApi object 
  * through SeriesInstance objects.
@@ -289,6 +322,18 @@ export class SeriesManager {
 		const rawCsvHeaders = csvParser.getHeaders();
         const seriesInstances = new Map();
 
+        const sourceCount: {[S in sl.SeriesSource]: number} = {
+            'candlestick': 0,
+            'volume': 0,
+            'bb_upper': 0,
+            'bb_middle': 0,
+            'bb_lower': 0,
+            'dc_upper': 0,
+            'dc_middle': 0,
+            'dc_lower': 0,
+            'adx': 0
+        }
+
         const ohlc = ['open', 'high', 'low', 'close'];
         const allOhlcPresent = ohlc.every(c => rawCsvHeaders.includes(c));
 
@@ -299,7 +344,10 @@ export class SeriesManager {
                             this.chart,
                             sl.SeriesSourceConfigs['candlestick']['seriesOptions']
                         )
-            if (seriesInstance) seriesInstances.set('candlestick',seriesInstance);
+            if (seriesInstance) {
+                seriesInstances.set('candlestick',seriesInstance)
+                sourceCount['candlestick']++
+            };
         } else {
             // If ever making a production version, consider adding a fallback here
             console.error('Missing one or more OHLC columns: ', ohlc);
@@ -307,36 +355,64 @@ export class SeriesManager {
 
         for (const header of rawCsvHeaders) {
             const matchingSource = (Object.keys(sl.SeriesSources) as sl.SeriesSource[]).find(s => header.startsWith(s))
-            if (matchingSource) {
-                const suffix = header.slice(matchingSource.length)
-                switch (matchingSource) {
-                    case 'adx': {
-                        const seriesInstance = createSeriesInstance(
-                                'adx',
-                                'Line',
-                                this.chart,
-                                sl.SeriesSourceConfigs['adx']['seriesOptions'],
-                                1,
-                                suffix
-                            )
-                        if (seriesInstance) seriesInstances.set(header, seriesInstance)   
-                        break;
+            if (!matchingSource) {
+                continue
+            }
+            
+            const suffix = header.slice(matchingSource.length)
+            switch (matchingSource) {
+                case 'adx': {
+                    const seriesInstance = createSeriesInstance(
+                            matchingSource,
+                            'Line',
+                            this.chart,
+                            sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
+                            1,
+                            suffix
+                        )
+                    if (seriesInstance) {
+                        seriesInstances.set(header, seriesInstance)  
+                        sourceCount[matchingSource]++
                     }
-                    default: {
-                        const seriesInstance = createSeriesInstance(
-                                matchingSource, 
-                                sl.SeriesSources[matchingSource], 
-                                this.chart, 
-                                sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
-                                undefined,
-                                suffix
-                                
-                            )   
-                        if (seriesInstance) seriesInstances.set(header, seriesInstance)
-                        break;
+                    break;
+                }                    
+                case 'bb_upper':
+                case 'bb_middle':
+                case 'bb_lower':
+                case 'dc_upper':
+                case 'dc_middle':
+                case 'dc_lower':{
+                    const seriesInstance = createSeriesInstance(
+                            matchingSource, 
+                            sl.SeriesSources[matchingSource], 
+                            this.chart, 
+                            getSourceOptions(matchingSource, sourceCount[matchingSource]),
+                            undefined,
+                            suffix
+                            
+                        )   
+                    if (seriesInstance) {
+                        seriesInstances.set(header, seriesInstance)
+                        sourceCount[matchingSource]++
                     }
+                    break;
                 }
-
+                default: {
+                    const seriesInstance = createSeriesInstance(
+                            matchingSource, 
+                            sl.SeriesSources[matchingSource], 
+                            this.chart, 
+                            sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
+                            undefined,
+                            suffix
+                            
+                        )   
+                    if (seriesInstance) {
+                        seriesInstances.set(header, seriesInstance)
+                        sourceCount[matchingSource]++
+                    }
+                    break;
+                }
             }
         }
 

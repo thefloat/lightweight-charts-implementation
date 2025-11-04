@@ -1,4 +1,4 @@
-import { UTCTimestamp, LineData, HistogramData, CandlestickData } from 'lightweight-charts';
+import { UTCTimestamp, WhitespaceData, LineData, HistogramData, CandlestickData } from 'lightweight-charts';
 
 /**
  * Represents a single row parsed from the CSV, where keys are header names and values are the corresponding cell values.
@@ -148,7 +148,7 @@ class CSVParser {
     return this.data
       .map((row: CsvRow):  TradeEvent=> ({
         time: this._normalizeTime(row.time),
-        event: row.event, // Map requred column to 'event' field
+        event: row.event,
       }));
   }
 
@@ -157,21 +157,25 @@ class CSVParser {
    * Requires 'time' and the column specified by `requiredColumn` to be present in the CSV header.
    * Time is normalized to a UTCTimestamp (seconds since epoch).
    * @param requiredColumn - The header name of the column containing the numerical data for the line series.
-   * @returns An array of LineData objects, each with a normalized time and a parsed value.
+   * @returns An array of LineData or WhitespaceData objects, each with a normalized time and a parsed value.
    * @throws {Error} If required columns are missing in the CSV header or if data hasn't been parsed yet.
    */
-  public parseLineData(requiredColumn: string): LineData[] {
+  public parseLineData(requiredColumn: string): (LineData | WhitespaceData)[] {
     if (!this.data || this.data.length === 0) {
       throw new Error("No data available to parse. Ensure CSV was loaded correctly.");
     }
     const requiredColumns = ['time', requiredColumn];
     this._validateColumns(requiredColumns);
 
-    return this.data
-      .map((row: CsvRow): LineData => ({
-        time: this._normalizeTime(row.time),
-        value: parseFloat(row[requiredColumn]), // Map requred column to 'value' field
-      }));
+    const datas = []
+    for (const row of this.data) {
+      const time = this._normalizeTime(row.time)
+      const value = parseFloat(row[requiredColumn])
+      const data = !isNaN(value) ? {time, value} : {time}
+      datas.push(data);
+    }
+
+    return datas;
   }
 
   /**
@@ -179,21 +183,25 @@ class CSVParser {
    * Requires 'time' and the column specified by `requiredColumn` to be present in the CSV header.
    * Time is normalized to a UTCTimestamp (seconds since epoch).
    * Rows with unparseable time or volume are filtered out.
-   * @returns An array of HistogramData objects, each with a normalized time and a parsed value.
+   * @returns An array of HistogramData or WhitespaceData objects, each with a normalized time and a parsed value.
    * @throws {Error} If required columns are missing in the CSV header or if data hasn't been parsed yet.
    */
-  public parseHistogramData(requiredColumn: string): HistogramData[] {
+  public parseHistogramData(requiredColumn: string): (HistogramData | WhitespaceData)[] {
     if (!this.data || this.data.length === 0) {
       throw new Error("No data available to parse. Ensure CSV was loaded correctly.");
     }
     const requiredColumns = ['time', requiredColumn];
     this._validateColumns(requiredColumns);
 
-    return this.data
-      .map((row: CsvRow): HistogramData => ({
-        time: this._normalizeTime(row.time),
-        value: parseFloat(row[requiredColumn]), // Map requred column to 'value' field
-      }));
+    const datas = []
+    for (const row of this.data) {
+      const time = this._normalizeTime(row.time)
+      const value = parseFloat(row[requiredColumn])
+      const data = !isNaN(value) ? {time, value} : {time}
+      datas.push(data);
+    }
+    
+    return datas;
   }
 
   /**
@@ -201,10 +209,10 @@ class CSVParser {
    * Required columns: 'time', 'open', 'high', 'low', 'close'.
    * Time is normalized to a UTCTimestamp (seconds since epoch).
    * Rows with unparseable time are filtered out.
-   * @returns Parsed candlestick data.
+   * @returns An array of CandlestickData or  or WhitespaceData.
    * @throws {Error} If required columns are missing in the CSV header or if data hasn't been parsed yet.
    */
-  public parseCandlestickData(): CandlestickData[] {
+  public parseCandlestickData(): (CandlestickData | WhitespaceData)[] {
     if (!this.data || this.data.length === 0) {
       // Handle case where constructor might have failed or CSV was empty after header
       throw new Error("No data available to parse. Ensure CSV was loaded correctly.");
@@ -212,14 +220,21 @@ class CSVParser {
     const requiredColumns = ['time', 'open', 'high', 'low', 'close'];
     this._validateColumns(requiredColumns);
 
-    return this.data
-      .map((row: CsvRow): CandlestickData => ({
-        time: this._normalizeTime(row.time),
-        open: parseFloat(row.open),
-        high: parseFloat(row.high),
-        low: parseFloat(row.low),
-        close: parseFloat(row.close),
-      }));
+    const datas = []
+    for (const row of this.data) {
+      const time = this._normalizeTime(row.time)
+      const open = parseFloat(row.open)
+      const high = parseFloat(row.high)
+      const low = parseFloat(row.low)
+      const close = parseFloat(row.close)
+
+      const allOhlcPresent = !(isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close))
+      const data = allOhlcPresent ? {time, open, high, low, close} : {time}
+
+      datas.push(data);
+    }
+
+    return datas;
   }
 }
 
