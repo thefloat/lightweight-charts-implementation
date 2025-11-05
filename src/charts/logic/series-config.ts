@@ -331,7 +331,9 @@ export class SeriesManager {
             'dc_upper': 0,
             'dc_middle': 0,
             'dc_lower': 0,
-            'adx': 0
+            'adx': 0,
+            'plusDi': 0,
+            'minusDi': 0,
         }
 
         const ohlc = ['open', 'high', 'low', 'close'];
@@ -361,10 +363,12 @@ export class SeriesManager {
             
             const suffix = header.slice(matchingSource.length)
             switch (matchingSource) {
-                case 'adx': {
+                case 'adx':
+                case 'plusDi':
+                case 'minusDi': {
                     const seriesInstance = createSeriesInstance(
                             matchingSource,
-                            'Line',
+                            sl.SeriesSources[matchingSource],
                             this.chart,
                             sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
                             1,

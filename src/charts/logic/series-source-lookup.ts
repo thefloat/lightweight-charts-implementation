@@ -9,7 +9,9 @@ export const SeriesSources = {
     dc_upper: 'Line',
     dc_middle: 'Line',
     dc_lower: 'Line',
-    adx: 'Line'
+    adx: 'Line',
+    plusDi: 'Line',
+    minusDi: 'Line'
 } as const;
 
 export type SeriesSources = typeof SeriesSources
@@ -17,7 +19,8 @@ export type SeriesSource = keyof SeriesSources
 
 export const Indicators = {
     bollinger_bands: 'Bollinger Bands',
-    donchian_channel: 'Donchian Channel'
+    donchian_channel: 'Donchian Channel',
+    dmi: 'DMI'
 } as const;
 
 type Indicator =  keyof typeof Indicators
@@ -44,13 +47,13 @@ export const SeriesSourceConfigs: {
                 !('low' in dataPoint) ||
                 !('close' in dataPoint)
             ) {
-                return '• O H L C';
+                return '• O • H • L • C';
             }
 
             return `• O_${formatter.format(dataPoint.open)}`
-                + ` H_${formatter.format(dataPoint.high)}` 
-                + ` L_${formatter.format(dataPoint.low)}` 
-                + ` C_${formatter.format(dataPoint.close)}`;
+                + ` • H_${formatter.format(dataPoint.high)}` 
+                + ` • L_${formatter.format(dataPoint.low)}` 
+                + ` • C_${formatter.format(dataPoint.close)}`;
         },
     },
     volume: {
@@ -75,7 +78,7 @@ export const SeriesSourceConfigs: {
     bb_upper: {
         label: 'BB Upper',
         seriesOptions: {
-            color: '#FF5733',
+            color: '#87312b',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -92,7 +95,7 @@ export const SeriesSourceConfigs: {
     bb_middle: {
         label: 'BB Middle',
         seriesOptions: {
-            color: '#F2D222',
+            color: '#9e9e00',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -109,7 +112,7 @@ export const SeriesSourceConfigs: {
     bb_lower: {
         label: 'BB Lower',
         seriesOptions: {
-            color: '#FF5733',
+            color: '#87312b',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -126,7 +129,7 @@ export const SeriesSourceConfigs: {
     dc_upper: {
         label: 'DC Upper',
         seriesOptions: {
-            color: '#3380FF',
+            color: '#181577',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -143,7 +146,7 @@ export const SeriesSourceConfigs: {
     dc_middle: {
         label: 'DC Middle',
         seriesOptions: {
-            color: '#22F2D2',
+            color: '#273186',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -160,7 +163,7 @@ export const SeriesSourceConfigs: {
     dc_lower: {
         label: 'DC Lower',
         seriesOptions: {
-            color: '#3380FF',
+            color: '#181577',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -177,7 +180,7 @@ export const SeriesSourceConfigs: {
     adx: {
         label: 'ADX',
         seriesOptions: {
-            color: '#3380FF',
+            color: '#9e6500',
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -188,6 +191,41 @@ export const SeriesSourceConfigs: {
             }
 
             return `• ADX_${formatter.format(dataPoint.value)}`;
-        }
-    }
+        },
+        indicator: 'dmi'
+    },
+    plusDi: {
+        label: '+DI',
+        seriesOptions: {
+            color: '#ffaf3e',
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        },
+        formatData(formatter, dataPoint) {
+            if (!('value' in dataPoint)) {
+                return '• +DI';
+            }
+
+            return `• +DI_${formatter.format(dataPoint.value)}`;
+        },
+        indicator: 'dmi'
+    },
+    minusDi: {
+        label: '-DI',
+        seriesOptions: {
+            color: '#ffe5c6',
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        },
+        formatData(formatter, dataPoint) {
+            if (!('value' in dataPoint)) {
+                return '• -DI';
+            }
+
+            return `• -DI_${formatter.format(dataPoint.value)}`;
+        },
+        indicator: 'dmi'
+    },
 } as const;
