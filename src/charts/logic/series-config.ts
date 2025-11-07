@@ -334,6 +334,7 @@ export class SeriesManager {
             'adx': 0,
             'plusDi': 0,
             'minusDi': 0,
+            'aer': 0,
         }
 
         const ohlc = ['open', 'high', 'low', 'close'];
@@ -363,6 +364,7 @@ export class SeriesManager {
             
             const suffix = header.slice(matchingSource.length)
             switch (matchingSource) {
+                case 'aer':
                 case 'adx':
                 case 'plusDi':
                 case 'minusDi': {
@@ -371,7 +373,7 @@ export class SeriesManager {
                             sl.SeriesSources[matchingSource],
                             this.chart,
                             sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
-                            1,
+                            this.getPaneIndex(matchingSource, seriesInstances),
                             suffix
                         )
                     if (seriesInstance) {
@@ -425,6 +427,29 @@ export class SeriesManager {
         }
 
         return seriesInstances;
+    }
+
+    /**
+     * Returns the pane index for a given series source.
+     * Use index for existing pane if a series from same source is already present,
+     * otherwise returns the next available pane index.
+     * Applies only to non-main panes (e.g. DMI, AER).
+     */
+    private getPaneIndex<T extends 'adx' | 'plusDi'| 'minusDi' | 'aer'>(
+        seriesSource: T, 
+        seriesInstances: Map<string, SeriesInstance<LightweightCharts.SeriesType>>
+    ): number {
+        const seriesGroup = sl.SeriesSourceConfigs[seriesSource].indicator ?? seriesSource
+
+        for (const instance of seriesInstances.values()) {
+            const instanceGroup = sl.SeriesSourceConfigs[instance.seriesSource].indicator ?? instance.seriesSource
+
+            if (instanceGroup === seriesGroup) {
+                return instance.series.getPane().paneIndex();
+            }
+        }
+
+        return this.chart.panes().length;
     }
 
     private setSeriesData(csvParser: CSVParser) {
