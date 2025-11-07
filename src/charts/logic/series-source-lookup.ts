@@ -11,7 +11,8 @@ export const SeriesSources = {
     dc_lower: 'Line',
     adx: 'Line',
     plusDi: 'Line',
-    minusDi: 'Line'
+    minusDi: 'Line',
+    aer: 'Line',
 } as const;
 
 export type SeriesSources = typeof SeriesSources
@@ -227,5 +228,21 @@ export const SeriesSourceConfigs: {
             return `• -DI_${formatter.format(dataPoint.value)}`;
         },
         indicator: 'dmi'
+    },
+    aer: {
+        label: 'AER',
+        seriesOptions: {
+            color: '#00ff00',
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        },
+        formatData(formatter, dataPoint) {
+            if (!('value' in dataPoint)) {
+                return '• AER';
+            }
+
+            return `• AER_${formatter.format(dataPoint.value)}`;
+        },
     },
 } as const;
