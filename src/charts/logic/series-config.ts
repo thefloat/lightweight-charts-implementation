@@ -335,6 +335,7 @@ export class SeriesManager {
             'plusDi': 0,
             'minusDi': 0,
             'aer': 0,
+            'atr': 0,
         }
 
         const ohlc = ['open', 'high', 'low', 'close'];
@@ -364,10 +365,11 @@ export class SeriesManager {
             
             const suffix = header.slice(matchingSource.length)
             switch (matchingSource) {
-                case 'aer':
                 case 'adx':
                 case 'plusDi':
-                case 'minusDi': {
+                case 'minusDi':
+                case 'aer':
+                case 'atr': {
                     const seriesInstance = createSeriesInstance(
                             matchingSource,
                             sl.SeriesSources[matchingSource],
@@ -387,7 +389,7 @@ export class SeriesManager {
                 case 'bb_lower':
                 case 'dc_upper':
                 case 'dc_middle':
-                case 'dc_lower':{
+                case 'dc_lower': {
                     const seriesInstance = createSeriesInstance(
                             matchingSource, 
                             sl.SeriesSources[matchingSource], 
@@ -435,7 +437,7 @@ export class SeriesManager {
      * otherwise returns the next available pane index.
      * Applies only to non-main panes (e.g. DMI, AER).
      */
-    private getPaneIndex<T extends 'adx' | 'plusDi'| 'minusDi' | 'aer'>(
+    private getPaneIndex<T extends 'adx' | 'plusDi'| 'minusDi' | 'aer' | 'atr'>(
         seriesSource: T, 
         seriesInstances: Map<string, SeriesInstance<LightweightCharts.SeriesType>>
     ): number {
