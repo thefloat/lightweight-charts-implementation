@@ -13,6 +13,7 @@ export const SeriesSources = {
     plusDi: 'Line',
     minusDi: 'Line',
     aer: 'Line',
+    atr: 'Line',
 } as const;
 
 export type SeriesSources = typeof SeriesSources
@@ -79,7 +80,7 @@ export const SeriesSourceConfigs: {
     bb_upper: {
         label: 'BB Upper',
         seriesOptions: {
-            color: '#87312b',
+            color: '#87312b', // red
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -130,7 +131,7 @@ export const SeriesSourceConfigs: {
     dc_upper: {
         label: 'DC Upper',
         seriesOptions: {
-            color: '#181577',
+            color: '#181577', //blue
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -181,7 +182,7 @@ export const SeriesSourceConfigs: {
     adx: {
         label: 'ADX',
         seriesOptions: {
-            color: '#9e6500',
+            color: '#9e6500', //orange
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -232,7 +233,7 @@ export const SeriesSourceConfigs: {
     aer: {
         label: 'AER',
         seriesOptions: {
-            color: '#00ff00',
+            color: '#00ff00', //green
             lineWidth: 1,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -243,6 +244,22 @@ export const SeriesSourceConfigs: {
             }
 
             return `• AER_${formatter.format(dataPoint.value)}`;
+        },
+    },
+    atr: {
+        label: 'ATR',
+        seriesOptions: {
+            color: '#00ff00', // purple
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        },
+        formatData(formatter, dataPoint) {
+            if (!('value' in dataPoint)) {
+                return '• ATR';
+            }
+
+            return `• ATR_${formatter.format(dataPoint.value)}`;
         },
     },
 } as const;
