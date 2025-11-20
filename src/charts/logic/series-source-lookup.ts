@@ -14,6 +14,7 @@ export const SeriesSources = {
     minusDi: 'Line',
     aer: 'Line',
     atr: 'Line',
+    ama: 'Line',
 } as const;
 
 export type SeriesSources = typeof SeriesSources
@@ -260,6 +261,22 @@ export const SeriesSourceConfigs: {
             }
 
             return `• ATR_${formatter.format(dataPoint.value)}`;
+        },
+    },
+    ama: {
+        label: 'AMA',
+        seriesOptions: {
+            color: '#00ff00', // purple
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        },
+        formatData(formatter, dataPoint) {
+            if (!('value' in dataPoint)) {
+                return '• AMA';
+            }
+
+            return `• AMA_${formatter.format(dataPoint.value)}`;
         },
     },
 } as const;
