@@ -336,6 +336,7 @@ export class SeriesManager {
             'minusDi': 0,
             'aer': 0,
             'atr': 0,
+            'ama': 0,
         }
 
         const ohlc = ['open', 'high', 'low', 'close'];
@@ -383,7 +384,23 @@ export class SeriesManager {
                         sourceCount[matchingSource]++
                     }
                     break;
-                }                    
+                }     
+                case 'ama': {
+                    const seriesInstance = createSeriesInstance(
+                            matchingSource, 
+                            sl.SeriesSources[matchingSource], 
+                            this.chart,
+                            sl.SeriesSourceConfigs[matchingSource]['seriesOptions'],
+                            undefined,
+                            suffix
+                            
+                        )   
+                    if (seriesInstance) {
+                        seriesInstances.set(header, seriesInstance)
+                        sourceCount[matchingSource]++
+                    }
+                    break;
+                }
                 case 'bb_upper':
                 case 'bb_middle':
                 case 'bb_lower':
